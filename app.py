@@ -127,7 +127,7 @@ async def main():
     try:
         # 🚨 PERBAIKAN: Tambahkan max_size dan ping_interval agar koneksi stabil
         # max_size=None berarti tidak ada batasan ukuran file gambar yang dikirim
-        async with websockets.serve(bound_handler, "localhost", 8765, max_size=None, ping_interval=None):
+        async with websockets.serve(bound_handler, "0.0.0.0", 8765, max_size=None, ping_interval=None):
             logger.info("==================================================")
             logger.info(" YOLO & DB WebSocket Server is RUNNING ")
             logger.info(" Listening on: ws://localhost:8765 ")
