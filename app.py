@@ -6,7 +6,6 @@ import numpy as np
 import base64
 import asyncpg
 import logging
-import ssl
 from datetime import datetime  # <-- TAMBAHAN BARU
 from ultralytics import YOLO
 
@@ -29,8 +28,7 @@ DB_CONFIG = {
     "database": "mbasystem",                  
     "host": "34.59.60.237", 
     "port": 5432      ,
-    "ssl": "ctx"            
-}
+    "ssl": "require"    }
 
 async def process_frame(websocket, db_pool):
     client_ip = websocket.remote_address[0]
