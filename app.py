@@ -19,16 +19,16 @@ logger = logging.getLogger("BackendYOLO")
 
 # ─── LOAD MODEL ───────────────────────────────────────────────────────────────
 logger.info("Loading YOLO model 'best_openvino_model'...")
-model = YOLO("best_openvino_model")
+model = YOLO('best_openvino_model', task='detect')
 logger.info("YOLO model loaded successfully.")
 
 # ─── KONFIGURASI DATABASE ───────────────────────────────────────────────────
 DB_CONFIG = {
     "user": "postgres",
-    "password": "1234", 
+    "password": "k}=>.(=+8,Nq3KkR", 
     "database": "mbasystem",                  
-    "host": "127.0.0.1", 
-    "port": 5433                              
+    "host": "34.59.60.237", 
+    "port": 5432                              
 }
 
 async def process_frame(websocket, db_pool):
