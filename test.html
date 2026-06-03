@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLO Cloud Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen p-4">
+
+    <h1 class="text-3xl font-bold mb-4 text-blue-400">YOLO Cloud Testing</h1>
+    
+    <div class="mb-4 flex space-x-2 w-full max-w-lg">
+        <input type="text" id="ws-url" value="ws://35.198.255.70:8765" 
+               class="flex-1 p-2 rounded bg-gray-800 border border-gray-600 focus:outline-none focus:border-blue-500" 
+               placeholder="ws://YOUR_CLOUD_IP:8765">
+        <button id="btn-connect" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-semibold transition">
+            Connect
+        </button>
+    </div>
+
+    <p id="status" class="mb-4 text-yellow-400 font-mono">Status: Disconnected</p>
+
+    <div class="relative bg-black rounded-lg overflow-hidden border border-gray-700 shadow-lg" style="width: 640px; height: 480px;">
+        <video id="video" width="640" height="480" autoplay playsinline class="absolute top-0 left-0"></video>
+        <canvas id="overlay" width="640" height="480" class="absolute top-0 left-0 z-10"></canvas>
+    </div>
+
+    <canvas id="hidden-canvas" width="640" height="480" style="display: none;"></canvas>
+
+    <script>
+        const video = document.getElementById('video');
+        const overlay = document.getElementById('overlay');
+        const ctx = overlay.getContext('2d');
+        const hiddenCanvas = document.getElementById('hidden-canvas');
+        const hiddenCtx = hiddenCanvas.getContext('2d');
+        
+        const btnConnect = document.getElementById('btn-connect');
+        const inputUrl = document.getElementById('ws-url');
+        const statusText = document.getElementById('status');
+
+        let ws = null;
+        let isProcessing = false;
+
+        // 1. Nyalakan Kamera
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                video.srcObject = stream;
+            } catch (err) {
+                alert("Gagal akses kamera! Pastikan buka di localhost atau HTTPS. Error: " + err.message);
+            }
+        }
+
+        // 2. Kirim Frame ke WebSocket
+        function sendFrame() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            if (isProcessing) return; // Jangan kirim frame baru kalau yang lama belum dibalas (biar gak ngelag)
+
+            isProcessing = true;
+
+            // Gambar video ke canvas tersembunyi
+            hiddenCtx.drawImage(video, 0, 0, 640, 480);
+            
+            // Convert jadi Base64 (Kualitas 0.6 biar ringan dikirim ke Cloud)
+            const base64Frame = hiddenCanvas.toDataURL('image/jpeg', 0.6);
+            
+            // Kirim ke Backend
+            ws.send(base64Frame);
+        }
+
+        // 3. Hubungkan ke WebSocket Cloud
+        btnConnect.addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+                return;
+            }
+
+            const url = inputUrl.value;
+            statusText.textContent = `Connecting to ${url}...`;
+            statusText.className = "mb-4 text-yellow-400 font-mono";
+            
+            ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                statusText.textContent = "Status: Connected & Streaming";
+                statusText.className = "mb-4 text-green-400 font-mono";
+                btnConnect.textContent = "Disconnect";
+                btnConnect.className = "bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold transition";
+                
+                // Mulai kirim frame secara berulang (Looping)
+                setInterval(sendFrame, 150); // Sekitar ~6-7 FPS
+            };
+
+            ws.onmessage = (event) => {
+                isProcessing = false; // Buka gerbang untuk kirim frame selanjutnya
+                
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.detections) {
+                        drawDetections(data.detections);
+                    }
+                } catch (e) {
+                    console.error("Gagal parse balasan server:", e);
+                }
+            };
+
+            ws.onclose = () => {
+                statusText.textContent = "Status: Disconnected";
+                statusText.className = "mb-4 text-red-400 font-mono";
+                btnConnect.textContent = "Connect";
+                btnConnect.className = "bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-semibold transition";
+                ctx.clearRect(0, 0, overlay.width, overlay.height); // Bersihkan layar
+                isProcessing = false;
+            };
+
+            ws.onerror = (err) => {
+                console.error("WebSocket Error:", err);
+            };
+        });
+
+        // 4. Gambar Bounding Box YOLO
+        function drawDetections(detections) {
+            // Hapus gambar kotak sebelumnya
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+            detections.forEach(det => {
+                const { x1, y1, x2, y2, conf, class_name } = det;
+
+                // Kotak deteksi
+                ctx.strokeStyle = "#00FF00"; // Warna Hijau
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+                // Label Teks
+                const text = `${class_name} (${(conf * 100).toFixed(1)}%)`;
+                ctx.fillStyle = "#00FF00";
+                ctx.fillRect(x1, y1 - 25, ctx.measureText(text).width + 10, 25);
+                
+                ctx.fillStyle = "#000000"; // Teks Hitam
+                ctx.font = "16px Arial";
+                ctx.fillText(text, x1 + 5, y1 - 7);
+            });
+        }
+
+        // Jalankan kamera saat pertama kali buka web
+        startCamera();
+    </script>
+</body>
+</html>

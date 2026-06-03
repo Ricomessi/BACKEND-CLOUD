@@ -1,0 +1,81 @@
+// =====================================================================
+// 1. VARIABEL & FUNGSI KALKULASI QoS (TARUH DI BAGIAN ATAS SCRIPT LU)
+// =====================================================================
+
+let previousLatency = 0;
+let totalJitter = 0;
+let jitterCount = 0;
+const sendTimeQueue = []; // Antrean waktu kirim frame (FIFO)
+
+function onReceiveDetectionData(sentTimestamp) {
+    const currentTimestamp = Date.now();
+    
+    // Hitung Latency (Waktu tempuh bolak-balik / RTT ke Ngrok)
+    const currentLatency = currentTimestamp - sentTimestamp; 
+    
+    if (previousLatency !== 0) {
+        // Hitung Jitter (Selisih mutlak latensi sekarang dan sebelumnya)
+        const currentJitter = Math.abs(currentLatency - previousLatency);
+        
+        totalJitter += currentJitter;
+        jitterCount++;
+        
+        const averageJitter = totalJitter / jitterCount;
+        
+        // Di-print pakai prefix [QoS] biar gampang di-filter di Console
+        console.log(`[QoS] Latency: ${currentLatency}ms | Jitter: ${currentJitter}ms | Rata-rata Jitter: ${averageJitter.toFixed(2)}ms`);
+    }
+    
+    previousLatency = currentLatency;
+}
+
+
+// =====================================================================
+// 2. INTEGRASI KE WEBSOCKET LU (CARI DAN MODIFIKASI KODE YANG ADA)
+// =====================================================================
+
+// Asumsi lu udah deklarasi WebSocket, misalnya:
+// const socket = new WebSocket('wss://17f5-35-240-162-38.ngrok-free.app');
+
+// A. Bagian ngirim gambar dari kamera ke backend
+function sendFrameToBackend(imageBase64) {
+    // 1. Catat waktu pas banget sebelum frame dikirim
+    sendTimeQueue.push(Date.now()); 
+    
+    // 2. Kirim payload gambar ke backend YOLO lu
+    ws.send(imageBase64); 
+}
+
+
+// B. Bagian nerima hasil deteksi dari backend
+ws.onmessage = function(event) {
+    // 1. Tarik waktu pengiriman frame yang paling awal dari antrean
+    const sentTimestamp = sendTimeQueue.shift(); 
+    
+    // 2. Jalankan fungsi hitung QoS
+    if (sentTimestamp) {
+        onReceiveDetectionData(sentTimestamp);
+    }
+    
+    // ==============================================================
+    // --- KODE ASLI LU TETAP JALAN DI BAWAH SINI ---
+    // Parsing data JSON dan render analitik / bounding box ke Canvas
+    // ==============================================================
+    
+    const dataString = event.data;
+    
+    // Cek kalau datanya berisi JSON (biar regex/log lu aman)
+    if (dataString.startsWith('{')) {
+        const parsedData = JSON.parse(dataString);
+        
+        // Contoh kalau ini balasan YOLO
+        if (parsedData.detections) {
+            // Logic ngegambar kotak deteksi "sitting", dsb.
+        }
+        
+        // Contoh kalau ini data tracking yg mau disave
+        if (parsedData.type === "SAVE_TRACKING") {
+            // Logic nyimpen durasi dan emotion tracking
+        }
+    }
+};

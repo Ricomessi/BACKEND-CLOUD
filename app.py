@@ -25,9 +25,9 @@ logger.info("YOLO model loaded successfully.")
 # ─── KONFIGURASI DATABASE ───────────────────────────────────────────────────
 DB_CONFIG = {
     "user": "postgres",
-    "password": "~jr}J]0k1~,7e+]O",
-    "database": "mbasystem",                  
-    "host": "34.59.60.237", 
+    "password": "DezYnNbD\~2\S:|5",
+    "database": "mbabatch2",                  
+    "host": "136.119.162.109", 
     "port": 5432      ,
     "ssl": "require"    }
 
