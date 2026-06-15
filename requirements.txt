@@ -6,3 +6,4 @@ ultralytics==8.4.40
 ultralytics-thop==2.0.18
 urllib3==2.6.3
 websockets==16.0
+python-dotenv

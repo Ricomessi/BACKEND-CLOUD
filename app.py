@@ -6,10 +6,15 @@ import numpy as np
 import base64
 import asyncpg
 import logging
-from datetime import datetime  # <-- TAMBAHAN BARU
+import os
+from datetime import datetime
 from ultralytics import YOLO
+from dotenv import load_dotenv
 
-# ─── KONFIGURASI LOGGING ────────────────────────────────────────────────────────
+# ─── LOAD ENVIRONMENT VARIABLES ───────────────────────────────────────────────
+load_dotenv()
+
+# ─── KONFIGURASI LOGGING ──────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format='\n%(asctime)s | %(levelname)-8s | %(message)s',
@@ -18,18 +23,24 @@ logging.basicConfig(
 logger = logging.getLogger("BackendYOLO")
 
 # ─── LOAD MODEL ───────────────────────────────────────────────────────────────
-logger.info("Loading YOLO model 'best_openvino_model'...")
-model = YOLO('best_openvino_model', task='detect')
+YOLO_MODEL_PATH = os.getenv("YOLO_MODEL_PATH", "best_openvino_model")
+logger.info(f"Loading YOLO model '{YOLO_MODEL_PATH}'...")
+model = YOLO(YOLO_MODEL_PATH, task='detect')
 logger.info("YOLO model loaded successfully.")
 
-# ─── KONFIGURASI DATABASE ───────────────────────────────────────────────────
+# ─── KONFIGURASI DATABASE ─────────────────────────────────────────────────────
 DB_CONFIG = {
-    "user": "postgres",
-    "password": "DezYnNbD\~2\S:|5",
-    "database": "mbabatch2",                  
-    "host": "136.119.162.109", 
-    "port": 5432      ,
-    "ssl": "require"    }
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "database": os.getenv("DB_NAME"),
+    "host": os.getenv("DB_HOST"),
+    "port": int(os.getenv("DB_PORT", 5432)),
+    "ssl": os.getenv("DB_SSL", "require")
+}
+
+# ─── KONFIGURASI WEBSOCKET ────────────────────────────────────────────────────
+WS_HOST = os.getenv("WS_HOST", "0.0.0.0")
+WS_PORT = int(os.getenv("WS_PORT", 8765))
 
 async def process_frame(websocket, db_pool):
     client_ip = websocket.remote_address[0]
@@ -93,7 +104,7 @@ async def save_to_db(pool, tracking_data_list):
     
     values = []
     for d in tracking_data_list:
-        # 🚨 PERBAIKAN WAKTU: Konversi UTC (Aware) ke Waktu Lokal (Naive)
+        # Konversi UTC (Aware) ke Waktu Lokal (Naive)
         start_dt = datetime.fromisoformat(d["start_time"].replace('Z', '+00:00')).astimezone().replace(tzinfo=None)
         end_dt = datetime.fromisoformat(d["end_time"].replace('Z', '+00:00')).astimezone().replace(tzinfo=None)
         
@@ -125,12 +136,11 @@ async def main():
     bound_handler = lambda ws: process_frame(ws, db_pool)
     
     try:
-        # 🚨 PERBAIKAN: Tambahkan max_size dan ping_interval agar koneksi stabil
-        # max_size=None berarti tidak ada batasan ukuran file gambar yang dikirim
-        async with websockets.serve(bound_handler, "0.0.0.0", 8765, max_size=None, ping_interval=None):
+        # Menggunakan host dan port dari .env
+        async with websockets.serve(bound_handler, WS_HOST, WS_PORT, max_size=None, ping_interval=None):
             logger.info("==================================================")
             logger.info(" YOLO & DB WebSocket Server is RUNNING ")
-            logger.info(" Listening on: ws://localhost:8765 ")
+            logger.info(f" Listening on: ws://{WS_HOST}:{WS_PORT} ")
             logger.info("==================================================")
             await asyncio.Future()  # Run forever
     except Exception as e:
